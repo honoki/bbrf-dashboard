@@ -34,7 +34,7 @@
                         <div class="card-body text-center">
                             <h5 class="card-title">{{ stats.domain_count.toLocaleString() }}</h5>
                             <p class="card-text">Domains</p>
-                            <p class="small">{{stats.domain_resolved_count.toLocaleString() }} resolved ({{ (stats.domain_resolved_count/stats.domain_count)*100 }}%)</p>
+                            <p class="small">{{stats.domain_resolved_count.toLocaleString() }} resolved ({{ (stats.domain_resolved_count/stats.domain_count).toFixed(4)*100 }}%)</p>
                         </div>
                     </div>
                 </div>
@@ -90,7 +90,7 @@
                             </template>
                             <template slot="top-row" slot-scope="{ fields }">
                                 <td v-for="field in fields" :key="field.key">
-                                    <input @change="search_table" width="100%" v-model="docs.table.filters[field.key]" placeholder="">
+                                    <input @change="search_table" width="100%" v-model="docs.table.filters[field.key]" placeholder="filter" class="form-control">
                                 </td>
                             </template>
                         </b-table>
@@ -309,7 +309,7 @@
                     
                     results = results.filter(function(row) {
                         
-                        var all_fields_match = true
+                        var all_fields_match = true || row
                         
                         // compare every field of the row to the filters
                         for(var i in documents.table.fields) {
@@ -318,11 +318,10 @@
                                 
                                 var filter = documents.table.filters[field]
                                 
-                                console.log(documents.table.filters[field])
-                                console.log(row.field)
                                 var value = eval('row.'+field)
-                                console.log(value)
                                 if(value && !value.toString().includes(filter)) {
+                                    all_fields_match = false
+                                } else if (!value) {
                                     all_fields_match = false
                                 }
                                 // there's a filter set, compare it to the row
@@ -520,6 +519,5 @@
 
 <style>
     #app {}
-    td input {display: block; padding: 0; margin: 0; border: 1; width: 100%;}
-    td {margin: 0; padding: 0;}
+    
 </style>
