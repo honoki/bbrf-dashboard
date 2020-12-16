@@ -13,6 +13,22 @@
                         </div>
                     </div>
                     <div class="col-auto">
+                        <div class="input-group mb-2">
+                            <div class="input-group-prepend">
+                                <div class="input-group-text">username:</div>
+                            </div>
+                            <input type="text" size="5" class="form-control" id="inlineFormInputGroup" placeholder="bbrf" v-model="couchdb_user">
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="input-group mb-2">
+                            <div class="input-group-prepend">
+                                <div class="input-group-text">password:</div>
+                            </div>
+                            <input type="password" size="10" class="form-control" id="inlineFormInputGroup" v-model="couchdb_pass">
+                        </div>
+                    </div>
+                    <div class="col-auto">
                         <button type="submit" class="btn btn-primary mb-2" @click.prevent="connect_server">Connect</button>
                     </div>
                 </div>
@@ -137,6 +153,8 @@
             return {
                 title: "BBRF dashboard",
                 couchdb: localStorage.getItem('couchdb'),
+                couchdb_user: localStorage.getItem('couchdb-user'),
+                couchdb_pass: localStorage.getItem('couchdb-pass'),
                 program: null,
                 stats: {
                     program_count: 0,
@@ -212,8 +230,8 @@
                             filters: {
                                 id: '',
                                 'doc.domains': '',
-                                'doc.source':'',
-                                'doc.program':''
+                                'doc.source': '',
+                                'doc.program': ''
                             }
                         }
                     },
@@ -260,12 +278,12 @@
                             ],
                             filters: {
                                 id: '',
-                                'doc.hostname':'',
-                                'doc.port':'',
-                                'doc.status':'',
-                                'doc.content_length':'',
-                                'doc.source':'',
-                                'doc.program':''
+                                'doc.hostname': '',
+                                'doc.port': '',
+                                'doc.status': '',
+                                'doc.content_length': '',
+                                'doc.source': '',
+                                'doc.program': ''
                             }
 
                         }
@@ -297,29 +315,29 @@
                     return results
                 }
             },
-            
+
             records_filtered: function() {
                 // only return rows that match the filter value
-                
+
                 let vm = this
-                
+
                 return function(doctype) {
                     var documents = vm.docstore[doctype]
                     var results = documents.records
-                    
+
                     results = results.filter(function(row) {
-                        
+
                         var all_fields_match = true || row
-                        
+
                         // compare every field of the row to the filters
-                        for(var i in documents.table.fields) {
+                        for (var i in documents.table.fields) {
                             var field = documents.table.fields[i].key
                             if (field in documents.table.filters && documents.table.filters[field].length > 0) {
-                                
+
                                 var filter = documents.table.filters[field]
-                                
-                                var value = eval('row.'+field)
-                                if(value && !value.toString().includes(filter)) {
+
+                                var value = eval('row.' + field)
+                                if (value && !value.toString().includes(filter)) {
                                     all_fields_match = false
                                 } else if (!value) {
                                     all_fields_match = false
@@ -327,10 +345,10 @@
                                 // there's a filter set, compare it to the row
                             }
                         }
-                        
+
                         return all_fields_match
                     })
-                    
+
                     return results
                 }
             }
@@ -341,8 +359,16 @@
         methods: {
             connect_server: function() {
                 if (this.couchdb) {
-                    this.db = new PouchDB(this.couchdb)
+                    var options = {}
+                    
+                    if(this.couchdb_user && this.couchdb_pass) {
+                        options = {'auth': {'username':this.couchdb_user, 'password': this.couchdb_pass}}
+                    }
+                    
+                    this.db = new PouchDB(this.couchdb, options)
                     localStorage.setItem('couchdb', this.couchdb)
+                    localStorage.setItem('couchdb-user', this.couchdb_user)
+                    localStorage.setItem('couchdb-pass', this.couchdb_pass)
 
                     this.get_programs()
                     this.get_stats()
@@ -519,5 +545,5 @@
 
 <style>
     #app {}
-    
+
 </style>
