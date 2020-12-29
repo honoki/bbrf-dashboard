@@ -40,7 +40,7 @@
                 <div class="col-sm-3">
                     <div class="card">
                         <div class="card-body text-center">
-                            <h5 class="card-title">{{ stats.program_count.toLocaleString() }}</h5>
+                            <h5 class="card-title">{{ stats.programs.toLocaleString() }}</h5>
                             <p class="card-text">Programs</p>
                         </div>
                     </div>
@@ -48,16 +48,16 @@
                 <div class="col-sm-3">
                     <div class="card">
                         <div class="card-body text-center">
-                            <h5 class="card-title">{{ stats.domain_count.toLocaleString() }}</h5>
+                            <h5 class="card-title">{{ stats.domains.toLocaleString() }}</h5>
                             <p class="card-text">Domains</p>
-                            <p class="small">{{stats.domain_resolved_count.toLocaleString() }} resolved ({{ (stats.domain_resolved_count/stats.domain_count).toFixed(4)*100 }}%)</p>
+                            <p class="small">{{stats.domains_resolved.toLocaleString() }} resolved ({{ ((stats.domains_resolved*100/stats.domains).toFixed(2)) }}%)</p>
                         </div>
                     </div>
                 </div>
                 <div class="col-sm-3">
                     <div class="card">
                         <div class="card-body text-center">
-                            <h5 class="card-title">{{ stats.ip_count.toLocaleString() }}</h5>
+                            <h5 class="card-title">{{ stats.ips.toLocaleString() }}</h5>
                             <p class="card-text">IPs</p>
                         </div>
                     </div>
@@ -65,7 +65,7 @@
                 <div class="col-sm-3">
                     <div class="card">
                         <div class="card-body text-center">
-                            <h5 class="card-title">{{ stats.url_count.toLocaleString() }}</h5>
+                            <h5 class="card-title">{{ stats.urls.toLocaleString() }}</h5>
                             <p class="card-text">URLs</p>
                         </div>
                     </div>
@@ -83,7 +83,7 @@
 
             <div>
                 <b-tabs>
-                    <b-tab v-for="(docs, doctype) in docstore" :key="doctype" :title="docs.display_value">
+                    <b-tab v-for="(docs, doctype) in docstore" :key="doctype" :title="docs.display_value" @click.prevent="active_tab=doctype">
                         <div v-if="doctype == 'domains'">
                             <br />
                             <div class="card">
@@ -95,7 +95,8 @@
                             </div>
                         </div>
                         <br />
-                        <b-table show-empty striped bordered :busy="docs.table.isBusy" :items="records_filtered(doctype)" :fields="fields_filtered(doctype)" :options="docs.table.options">
+                        <b-pagination v-model="docs.table.current_page" :total-rows="records_filtered(doctype).length" :per-page="table_pagination_records" :aria-controls="'tbl-'+doctype" align="center"></b-pagination>
+                        <b-table show-empty striped bordered :busy="docs.table.isBusy" :items="records_filtered(doctype)" :fields="fields_filtered(doctype)" :options="docs.table.options" :id="'tbl-'+doctype" :per-page="table_pagination_records" :current-page="docs.table.current_page">
                             <template #table-busy>
                                 <div class="text-center">
                                     <p>
@@ -109,7 +110,25 @@
                                     <input @change="search_table" width="100%" v-model="docs.table.filters[field.key]" placeholder="filter" class="form-control">
                                 </td>
                             </template>
+                            <template slot="bottom-row" v-if="program" :set="total = 999">
+                                <td colspan="100%" align="center" class="small">
+                                    Loaded {{ docs.records.length.toLocaleString() }} of
+                                    <span v-if="doctype != 'domains' || docs.filter_domains == 'all'" :set="total = stats[doctype]">
+                                        {{ total.toLocaleString() }}
+                                    </span>
+                                    <span v-else>
+                                        <span :set="total = stats[''+doctype+'_'+docs.filter_domains]">
+                                            {{ total.toLocaleString() }}
+                                        </span>
+                                    </span>
+                                    records
+                                    <span v-if="total > docs.records.length">&bull; <a href="#" @click.prevent="load_records(doctype)">load {{ (Math.min(page_size, total - docs.records.length)).toLocaleString() }} more</a></span>
+
+                                </td>
+                            </template>
                         </b-table>
+                        <b-pagination v-model="docs.table.current_page" :total-rows="records_filtered(doctype).length" :per-page="table_pagination_records" :aria-controls="'tbl-'+doctype" align="center"></b-pagination>
+
                     </b-tab>
                 </b-tabs>
             </div>
@@ -132,6 +151,7 @@
         BTabs,
         BTab,
         BTable,
+        BPagination,
         BFormRadio,
         BSpinner
     } from 'bootstrap-vue'
@@ -144,6 +164,7 @@
         name: 'App',
         components: {
             BTable,
+            BPagination,
             BTabs,
             BTab,
             BFormRadio,
@@ -157,11 +178,12 @@
                 couchdb_pass: localStorage.getItem('couchdb-pass'),
                 program: null,
                 stats: {
-                    program_count: 0,
-                    domain_count: 0,
-                    domain_resolved_count: 0,
-                    ip_count: 0,
-                    url_count: 0
+                    programs: 0,
+                    domains: 0,
+                    domains_resolved: 0,
+                    domains_unresolved: 0,
+                    ips: 0,
+                    urls: 0
                 },
                 programs: [],
                 alerts: [],
@@ -198,7 +220,8 @@
                                 'doc.ips': '',
                                 'doc.source': '',
                                 'doc.program': ''
-                            }
+                            },
+                            current_page: 1
                         }
                     },
                     ips: {
@@ -232,7 +255,8 @@
                                 'doc.domains': '',
                                 'doc.source': '',
                                 'doc.program': ''
-                            }
+                            },
+                            current_page: 1
                         }
                     },
                     urls: {
@@ -284,11 +308,17 @@
                                 'doc.content_length': '',
                                 'doc.source': '',
                                 'doc.program': ''
-                            }
+                            },
+                            current_page: 1
 
                         }
                     }
                 },
+                table_pagination_records: 100,
+                page_size: 2000,
+                last_refresh: 0,
+                is_updating: false,
+                active_tab: 'domains'
             }
         },
         computed: {
@@ -360,11 +390,16 @@
             connect_server: function() {
                 if (this.couchdb) {
                     var options = {}
-                    
-                    if(this.couchdb_user && this.couchdb_pass) {
-                        options = {'auth': {'username':this.couchdb_user, 'password': this.couchdb_pass}}
+
+                    if (this.couchdb_user && this.couchdb_pass) {
+                        options = {
+                            'auth': {
+                                'username': this.couchdb_user,
+                                'password': this.couchdb_pass
+                            }
+                        }
                     }
-                    
+
                     this.db = new PouchDB(this.couchdb, options)
                     localStorage.setItem('couchdb', this.couchdb)
                     localStorage.setItem('couchdb-user', this.couchdb_user)
@@ -375,15 +410,22 @@
                     this.listen_for_changes()
                 }
             },
-            get_domains: function() {
+            get_domains: function(get_more = false) {
 
-                this.docstore.domains.table.isBusy = true
-                this.docstore.domains.records = []
                 let me = this
 
                 var options = {
                     reduce: false,
-                    include_docs: true
+                    include_docs: true,
+                    limit: this.page_size // limit the default to first x records and fetch more when hitting the end of the table
+                }
+
+                // pagination is requested:
+                if (get_more) {
+                    options.skip = this.docstore.domains.records.length
+                } else {
+                    this.docstore.domains.records = []
+                    this.docstore.domains.table.isBusy = true
                 }
 
                 if (this.program) options.key = this.program
@@ -401,15 +443,22 @@
 
                 })
             },
-            get_ips: function() {
+            get_ips: function(get_more = false) {
 
-                this.docstore.ips.table.isBusy = true
-                this.docstore.ips.records = []
                 let me = this
 
                 var options = {
                     reduce: false,
-                    include_docs: true
+                    include_docs: true,
+                    limit: this.page_size // limit the default to first x records and fetch more when hitting the end of the table
+                }
+
+                // pagination is requested:
+                if (get_more) {
+                    options.skip = this.docstore.ips.records.length
+                } else {
+                    this.docstore.ips.records = []
+                    this.docstore.ips.table.isBusy = true
                 }
 
                 if (this.program) options.key = this.program
@@ -423,14 +472,21 @@
 
                 })
             },
-            get_urls: function() {
+            get_urls: function(get_more = false) {
                 let me = this
-                this.docstore.urls.table.isBusy = true
-                this.docstore.urls.records = []
 
                 var options = {
                     reduce: false,
-                    include_docs: true
+                    include_docs: true,
+                    limit: this.page_size // limit the default to first x records and fetch more when hitting the end of the table
+                }
+
+                // pagination is requested:
+                if (get_more) {
+                    options.skip = this.docstore.urls.records.length
+                } else {
+                    this.docstore.urls.records = []
+                    this.docstore.urls.table.isBusy = true
                 }
 
                 if (this.program) options.key = this.program
@@ -478,23 +534,27 @@
                 this.db.query('bbrf/programs', {
                     reduce: true
                 }).then(function(response) {
-                    me.stats.program_count = response.rows.length > 0 ? response.rows[0].value : 0
+                    me.stats.programs = response.rows.length > 0 ? response.rows[0].value : 0
                 }).catch(function() {})
                 this.db.query('bbrf/domains', options).then(function(response) {
-                    me.stats.domain_count = response.rows.length > 0 ? response.rows[0].value : 0
+                    me.stats.domains = response.rows.length > 0 ? response.rows[0].value : 0
                 }).catch(function() {})
                 this.db.query('bbrf/domains_resolved', options).then(function(response) {
-                    me.stats.domain_resolved_count = response.rows.length > 0 ? response.rows[0].value : 0
+                    me.stats.domains_resolved = response.rows.length > 0 ? response.rows[0].value : 0
                 }).catch(function() {})
-                this.db.query('bbrf/urls_by_hostname', options).then(function(response) {
-                    me.stats.url_count = response.rows.length > 0 ? response.rows[0].value : 0
+                this.db.query('bbrf/domains_unresolved', options).then(function(response) {
+                    me.stats.domains_unresolved = response.rows.length > 0 ? response.rows[0].value : 0
+                }).catch(function() {})
+                this.db.query('bbrf/urls_by_program', options).then(function(response) {
+                    me.stats.urls = response.rows.length > 0 ? response.rows[0].value : 0
                 }).catch(function() {})
                 this.db.query('bbrf/ips', options).then(function(response) {
-                    me.stats.ip_count = response.rows.length > 0 ? response.rows[0].value : 0
+                    me.stats.ips = response.rows.length > 0 ? response.rows[0].value : 0
                 }).catch(function() {})
             },
             select_program: function() {
                 if (this.program == "SHOWALL") this.program = null
+                //TODO: improve this so it only starts off updating the active tab
                 this.get_domains()
                 this.get_ips()
                 this.get_urls()
@@ -508,28 +568,51 @@
                     include_docs: true
                 }).on('change', function(change) {
 
-                    vm.get_stats()
+                    var now = (new Date()).getTime()
 
-                    if ((change.doc.program == this.program) || !this.program) {
-                        // it's a change to the program we're viewing (or we're viewing all programs)
+                    // only refresh once in a while to avoid stalling
+                    if (!vm.is_updating && (now - vm.last_refresh) > 5000) {
 
-                        if (change.doc.type == 'domain') {
-                            vm.get_domains()
-                        } else if (change.doc.type == 'ip') {
-                            vm.get_ips()
-                        } else if (change.doc.type == 'url') {
-                            vm.get_urls()
+                        /*console.log(now)
+                        console.log(vm.last_refresh)
+                        console.log('Diff: ' + (now - vm.last_refresh))
+                        console.log('Needs update: ' + (now - vm.last_refresh > 5000))
+                        console.log('Is updating: ' + vm.is_updating)*/
+
+                        vm.is_updating = true
+                        vm.get_stats()
+
+                        if ((change.doc.program == vm.program) || !vm.program) {
+                            // it's a change to the program we're viewing (or we're viewing all programs)
+
+                            if (change.doc.type == 'domain') {
+                                vm.get_domains()
+                            } else if (change.doc.type == 'ip') {
+                                vm.get_ips()
+                            } else if (change.doc.type == 'url') {
+                                vm.get_urls()
+                            }
                         }
 
+                        vm.last_refresh = now
+                        vm.is_updating = false
                     }
-                    console.log(change)
-                }).on('error', function(err) {
+
+                }).on('error', function() {
                     // handle errors
-                    console.log(err)
                 })
             },
             search_table: function() {
                 return 1
+            },
+            load_records: function(type) {
+                if (type == 'domains') {
+                    this.get_domains(true)
+                } else if (type == 'ips') {
+                    this.get_ips(true)
+                } else if (type == 'urls') {
+                    this.get_urls(true)
+                }
             }
 
         },
@@ -542,8 +625,3 @@
     }
 
 </script>
-
-<style>
-    #app {}
-
-</style>
