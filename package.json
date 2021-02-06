@@ -11,7 +11,10 @@
     "bootstrap-vue": "^2.20.1",
     "core-js": "^3.6.5",
     "pouchdb": "^7.2.2",
-    "vue": "^2.6.11"
+    "v-copy": "^0.1.0",
+    "vue": "^2.6.11",
+    "vue-analytics": "^5.22.1",
+    "vue-clipboard2": "^0.3.1"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "~4.5.0",

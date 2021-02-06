@@ -37,7 +37,7 @@
         <div class="container">
             <p><br /></p>
             <div class="row">
-                <div class="col-sm-3">
+                <div class="col-sm-2">
                     <div class="card">
                         <div class="card-body text-center">
                             <h5 class="card-title">{{ stats.programs.toLocaleString() }}</h5>
@@ -45,7 +45,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-sm-3">
+                <div class="col-sm-2">
                     <div class="card">
                         <div class="card-body text-center">
                             <h5 class="card-title">{{ stats.domains.toLocaleString() }}</h5>
@@ -54,7 +54,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-sm-3">
+                <div class="col-sm-2">
                     <div class="card">
                         <div class="card-body text-center">
                             <h5 class="card-title">{{ stats.ips.toLocaleString() }}</h5>
@@ -62,11 +62,19 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-sm-3">
+                <div class="col-sm-2">
                     <div class="card">
                         <div class="card-body text-center">
                             <h5 class="card-title">{{ stats.urls.toLocaleString() }}</h5>
                             <p class="card-text">URLs</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-sm-2">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">{{ stats.services.toLocaleString() }}</h5>
+                            <p class="card-text">Services</p>
                         </div>
                     </div>
                 </div>
@@ -80,6 +88,16 @@
                     <option v-for="program in programs" v-bind:key="program.id">{{ program.id }}</option>
                 </select>
             </div>
+            <div align="right" v-if="program_doc && program_doc.hasOwnProperty('doc')">
+                <b-button v-b-toggle.collapse-1 variant="outline-secondary">Show program details</b-button>
+                <b-collapse id="collapse-1" class="mt-2">
+                    <b-card align="left">
+                        <pre><code>{{ program_doc.doc }}</code></pre>
+                    </b-card>
+                </b-collapse>
+            </div>
+
+            <br />
 
             <div>
                 <b-tabs>
@@ -107,7 +125,7 @@
                             </template>
                             <template slot="top-row" slot-scope="{ fields }">
                                 <td v-for="field in fields" :key="field.key">
-                                    <input @change="search_table" width="100%" v-model="docs.table.filters[field.key]" placeholder="filter" class="form-control">
+                                    <input @change="search_table" width="80%" v-model="docs.table.filters[field.key]" placeholder="filter" class="form-control">
                                 </td>
                             </template>
                             <template slot="bottom-row" v-if="program" :set="total = 999">
@@ -127,6 +145,9 @@
                                 </td>
                             </template>
                         </b-table>
+                        <div align="right" style="margin-bottom:2em;">
+                            <b-button v-clipboard:copy="format_clipboard(records_filtered(doctype))" variant="outline-secondary" size="sm">Copy to clipboard</b-button>
+                        </div>
                         <b-pagination v-model="docs.table.current_page" :total-rows="records_filtered(doctype).length" :per-page="table_pagination_records" :aria-controls="'tbl-'+doctype" align="center"></b-pagination>
 
                     </b-tab>
@@ -153,7 +174,11 @@
         BTable,
         BPagination,
         BFormRadio,
-        BSpinner
+        BSpinner,
+        BCollapse,
+        BButton,
+        BCard,
+        VBToggle,
     } from 'bootstrap-vue'
 
     import PouchDB from 'pouchdb'
@@ -168,7 +193,13 @@
             BTabs,
             BTab,
             BFormRadio,
-            BSpinner
+            BSpinner,
+            BCollapse,
+            BButton,
+            BCard,
+        },
+        directives: {
+            'b-toggle': VBToggle,
         },
         data: function() {
             return {
@@ -183,7 +214,8 @@
                     domains_resolved: 0,
                     domains_unresolved: 0,
                     ips: 0,
-                    urls: 0
+                    urls: 0,
+                    services: 0
                 },
                 programs: [],
                 alerts: [],
@@ -312,6 +344,48 @@
                             current_page: 1
 
                         }
+                    },
+                    services: {
+                        display_value: 'Services',
+                        records: [], // will be populated by PouchDB
+                        table: {
+                            isBusy: false,
+                            fields: [{
+                                    key: 'doc.ip',
+                                    label: 'IP',
+                                    sortable: false
+                                },
+                                {
+                                    key: 'doc.port',
+                                    label: 'Port',
+                                    sortable: true
+                                },
+                                {
+                                    key: 'doc.service',
+                                    label: 'Service',
+                                    sortable: true
+                                },
+                                {
+                                    key: 'doc.source',
+                                    label: 'Source',
+                                    sortable: true
+                                },
+                                {
+                                    key: 'doc.program',
+                                    label: 'Program',
+                                    sortable: false
+                                }
+                            ],
+                            filters: {
+                                'doc.ip': '',
+                                'doc.port': '',
+                                'doc.service': '',
+                                'doc.source': '',
+                                'doc.program': ''
+                            },
+                            current_page: 1
+
+                        }
                     }
                 },
                 table_pagination_records: 100,
@@ -381,10 +455,20 @@
 
                     return results
                 }
+            },
+
+            program_doc: function() {
+
+                let vm = this
+                var document = this.programs.filter(function(program) {
+                    if (program.id == vm.program) return true
+                })[0]
+
+                return document
             }
         },
         created: function() {
-            if (this.couchdb) this.connect_server()
+            if (this.couchdb) this.connect_server();
         },
         methods: {
             connect_server: function() {
@@ -500,13 +584,41 @@
 
                 })
             },
+            get_services: function(get_more = false) {
+                let me = this
+
+                var options = {
+                    reduce: false,
+                    include_docs: true,
+                    limit: this.page_size // limit the default to first x records and fetch more when hitting the end of the table
+                }
+
+                // pagination is requested:
+                if (get_more) {
+                    options.skip = this.docstore.services.records.length
+                } else {
+                    this.docstore.services.records = []
+                    this.docstore.services.table.isBusy = true
+                }
+
+                if (this.program) options.key = this.program
+
+                this.db.query('bbrf/services', options).then(function(response) {
+                    for (var i = 0; i < response.rows.length; i++) {
+                        me.docstore.services.records.push(response.rows[i])
+                    }
+                    me.docstore.services.table.isBusy = false
+                }).catch(function() {
+
+                })
+            },
             get_programs: function() {
                 let me = this
                 this.programs = []
 
                 var options = {
                     reduce: false,
-                    include_docs: false
+                    include_docs: true
                 }
 
                 this.db.query('bbrf/programs', options).then(function(response) {
@@ -551,13 +663,19 @@
                 this.db.query('bbrf/ips', options).then(function(response) {
                     me.stats.ips = response.rows.length > 0 ? response.rows[0].value : 0
                 }).catch(function() {})
+                this.db.query('bbrf/services', options).then(function(response) {
+                    me.stats.services = response.rows.length > 0 ? response.rows[0].value : 0
+                }).catch(function() {})
             },
             select_program: function() {
-                if (this.program == "SHOWALL") this.program = null
+                if (this.program == "SHOWALL") {
+                    this.program = null
+                }
                 //TODO: improve this so it only starts off updating the active tab
                 this.get_domains()
                 this.get_ips()
                 this.get_urls()
+                this.get_services()
                 this.get_stats()
             },
             listen_for_changes: function() {
@@ -591,7 +709,10 @@
                                 vm.get_ips()
                             } else if (change.doc.type == 'url') {
                                 vm.get_urls()
+                            } else if (change.doc.type == 'service') {
+                                vm.get_services()
                             }
+                            
                         }
 
                         vm.last_refresh = now
@@ -612,7 +733,14 @@
                     this.get_ips(true)
                 } else if (type == 'urls') {
                     this.get_urls(true)
+                } else if (type == 'services') {
+                    this.get_services(true)
                 }
+            },
+            format_clipboard: function(table) {
+                return table.map(
+                    row => { return row.id }
+                ).join("\n");
             }
 
         },
