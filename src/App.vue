@@ -82,9 +82,9 @@
             <p><br /></p>
             <h4>Programs</h4>
             <div class="form-group">
-                <label for="programSelect">Select a program below to load data tables.</label>
+                <label for="programSelect">Select a program below to load data tables. <span  v-b-tooltip title="Only showing enabled programs with a defined inscope"><b-icon icon="info-circle-fill" scale="1" variant="black"></b-icon></span></label>
                 <select @change="select_program" v-model="program" class="form-control" id="programSelect">
-                    <option value="SHOWALL">Show all programs - this may be very heavy on your browser!</option>
+                    <option value="SHOWALL">Load all programs (this may be heavy on your browser)</option>
                     <option v-for="program in programs" v-bind:key="program.id">{{ program.id }}</option>
                 </select>
             </div>
@@ -179,6 +179,7 @@
         BButton,
         BCard,
         VBToggle,
+        VBTooltip,
     } from 'bootstrap-vue'
 
     import PouchDB from 'pouchdb'
@@ -200,6 +201,7 @@
         },
         directives: {
             'b-toggle': VBToggle,
+            'b-tooltip': VBTooltip,
         },
         data: function() {
             return {
@@ -623,7 +625,8 @@
 
                 this.db.query('bbrf/programs', options).then(function(response) {
                     for (var i = 0; i < response.rows.length; i++) {
-                        me.programs.push(response.rows[i])
+                        if(response.rows[i]['value'] > 0 && !response.rows[i]['doc']['disabled'])
+                            me.programs.push(response.rows[i])
                     }
                 }).catch(function() {
 
