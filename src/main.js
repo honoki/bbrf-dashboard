@@ -7,6 +7,7 @@ import { BootstrapVueIcons } from 'bootstrap-vue'
 
 Vue.use(VueClipboard)
 Vue.use(BootstrapVueIcons)
+Vue.use(require('vue-moment'));
 
 new Vue({
   render: h => h(App)
