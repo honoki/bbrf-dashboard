@@ -182,6 +182,10 @@
                             <template #cell(key)="data">
                                 <span v-b-tooltip :title="new Date(data.item.key * 1000) | moment('dddd, MMMM Do YYYY, h:mm:ss a')">{{new Date(data.item.key*1000) | moment("from") }}</span>
                             </template>
+                            <template slot="bottom-row">
+                                <td colspan="100%" align="center" class="small">
+                                    <span><a href="#" @click.prevent="load_records('alerts')">load more</a></span></td>
+                            </template>
                         </b-table>
                         <b-pagination v-model="alerts.table.current_page" :total-rows="alerts.records.length" :per-page="table_pagination_records" aria-controls="tbl-alerts" align="center"></b-pagination>
                     </div>
@@ -696,21 +700,32 @@
 
                 })
             },
-            get_alerts: function() {
+            get_alerts: function(get_more = false) {
                 let me = this
-                this.alerts.records = []
-                this.alerts.table.isBusy = true
                 var options = {
-                    descending: true
+                    descending: true,
+                    limit: this.page_size
                 }
+
+                // pagination is requested:
+                if (get_more) {
+                    options.skip = me.alerts.records.length
+                } else {
+                    this.alerts.records = []
+                    this.alerts.table.isBusy = true
+                    console.log("busy" + this.alerts.table.isBusy)
+                }
+
                 this.db.query('bbrf/alerts', options).then(function(response) {
                     for (var i = 0; i < response.rows.length; i++) {
                         me.alerts.records.push(response.rows[i])
                     }
+                    me.alerts.table.isBusy = false
+                    console.log("busy" + me.alerts.table.isBusy)
                 }).catch(function() {
 
                 })
-                this.alerts.table.isBusy = false
+                
             },
             get_stats: function() {
                 let me = this
@@ -820,6 +835,8 @@
                     this.get_urls(true)
                 } else if (type == 'services') {
                     this.get_services(true)
+                } else if (type == 'alerts') {
+                    this.get_alerts(true)
                 }
             },
             format_clipboard: function(table) {
