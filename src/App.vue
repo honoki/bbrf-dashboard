@@ -126,6 +126,17 @@
                                 </div>
                                 <br />
                                 <b-pagination v-model="docs.table.current_page" :total-rows="records_filtered(doctype).length" :per-page="table_pagination_records" :aria-controls="'tbl-'+doctype" align="center"></b-pagination>
+                                <div v-if="docs.tagnames.length > 0">
+                                    <span v-for="tag in docs.tagnames" :key="tag.name">
+                                        <b-button pill size="sm" :pressed.sync="tag.show" variant="outline-primary">{{ tag.name }}</b-button>
+                                        {{ '&nbsp;' }}
+                                    </span>
+                                    &nbsp;
+                                    <span v-b-tooltip title="Toggle your custom tags to add them as columns to the data table.">
+                                        <b-icon icon="info-circle-fill" scale="1" variant="black"></b-icon>
+                                    </span>
+                                </div>
+                                <br />
                                 <b-table show-empty striped bordered :busy="docs.table.isBusy" :items="records_filtered(doctype)" :fields="fields_filtered(doctype)" :options="docs.table.options" :id="'tbl-'+doctype" :per-page="table_pagination_records" :current-page="docs.table.current_page">
                                     <template #table-busy>
                                         <div class="text-center">
@@ -137,7 +148,7 @@
                                     </template>
                                     <template slot="top-row" slot-scope="{ fields }">
                                         <td v-for="field in fields" :key="field.key">
-                                            <input @change="search_table" width="80%" v-model="docs.table.filters[field.key]" placeholder="filter" class="form-control">
+                                            <input type="search" width="80%" v-model="docs.table.filters[field.key]" placeholder="filter" :class="'form-control' + (field.key in docs.table.filters && docs.table.filters[field.key].length > 0 ? ' bg-light border-warning' : '')"/>
                                         </td>
                                     </template>
                                     <template slot="bottom-row" v-if="program" :set="total = 999">
@@ -184,7 +195,8 @@
                             </template>
                             <template slot="bottom-row">
                                 <td colspan="100%" align="center" class="small">
-                                    <span><a href="#" @click.prevent="load_records('alerts')">load more</a></span></td>
+                                    <span><a href="#" @click.prevent="load_records('alerts')">load more</a></span>
+                                </td>
                             </template>
                         </b-table>
                         <b-pagination v-model="alerts.table.current_page" :total-rows="alerts.records.length" :per-page="table_pagination_records" aria-controls="tbl-alerts" align="center"></b-pagination>
@@ -293,6 +305,7 @@
                         filter_domains: 'all',
                         display_value: 'Domains',
                         records: [], // will be populated by PouchDB
+                        tagnames: [],
                         table: {
                             isBusy: false,
                             fields: [{
@@ -328,6 +341,7 @@
                     ips: {
                         display_value: 'IPs',
                         records: [], // will be populated by PouchDB
+                        tagnames: [],
                         table: {
                             isBusy: false,
                             fields: [{
@@ -363,6 +377,7 @@
                     urls: {
                         display_value: 'URLs',
                         records: [], // will be populated by PouchDB
+                        tagnames: [],
                         table: {
                             isBusy: false,
                             fields: [{
@@ -417,6 +432,7 @@
                     services: {
                         display_value: 'Services',
                         records: [], // will be populated by PouchDB
+                        tagnames: [],
                         table: {
                             isBusy: false,
                             fields: [{
@@ -485,6 +501,18 @@
                         })
                     }
 
+                    // add custom tags if they are toggled on:
+                    for (var t in documents.tagnames) {
+                        var tag = documents.tagnames[t]
+                        if (tag.show) {
+                            results.push({
+                                key: `doc.tags.${tag.name}`,
+                                label: tag.name,
+                                sortable: true
+                            })
+                        }
+                    }
+
                     return results
                 }
             },
@@ -502,14 +530,22 @@
 
                         var all_fields_match = true || row
 
-                        // compare every field of the row to the filters
-                        for (var i in documents.table.fields) {
-                            var field = documents.table.fields[i].key
+                        // compare every column of the row to the filters
+                        for (var i in vm.fields_filtered(doctype)) {
+                            var field = vm.fields_filtered(doctype)[i].key
                             if (field in documents.table.filters && documents.table.filters[field].length > 0) {
 
                                 var filter = documents.table.filters[field]
+                                try {
+                                    // the try catch is necessary because the
+                                    // following eval will fail to get the data
+                                    // from rows without any custom tags when
+                                    // filtering on custom tags 
+                                    var value = eval('row.' + field)
+                                } catch {
+                                    // do nothing
+                                }
 
-                                var value = eval('row.' + field)
                                 if (value && !value.toString().includes(filter)) {
                                     all_fields_match = false
                                 } else if (!value) {
@@ -682,6 +718,31 @@
 
                 })
             },
+            get_tagnames: function(doctype) {
+                let me = this
+
+                me.docstore[doctype + 's'].tagnames = []
+
+                this.db.query('bbrf/tagnames_by_program_doctype?key=["' + this.program + '","' + doctype + '"]').then(function(response) {
+                    for (var i in response.rows) {
+                        if (me.docstore[doctype + 's'].tagnames.map(x => x.name).indexOf(response.rows[i].value) == -1) {
+                            me.docstore[doctype + 's'].tagnames.push({
+                                name: response.rows[i].value,
+                                show: false
+                            })
+                        }
+
+                        // also add to filters, so we can use the table filter function
+                        // note that this is never cleaned up, so the data structure
+                        // might start aggregating loads of filters that don't actually
+                        // belong to the currently active program
+                        if (Object.keys(me.docstore[doctype + 's'].table.filters).indexOf(response.rows[i].value) == -1) {
+                            me.docstore[doctype + 's'].table.filters[response.rows[i].value] = ''
+                        }
+                    }
+
+                }).catch(function() {})
+            },
             get_programs: function() {
                 let me = this
                 this.programs = []
@@ -713,7 +774,6 @@
                 } else {
                     this.alerts.records = []
                     this.alerts.table.isBusy = true
-                    console.log("busy" + this.alerts.table.isBusy)
                 }
 
                 this.db.query('bbrf/alerts', options).then(function(response) {
@@ -721,11 +781,10 @@
                         me.alerts.records.push(response.rows[i])
                     }
                     me.alerts.table.isBusy = false
-                    console.log("busy" + me.alerts.table.isBusy)
                 }).catch(function() {
 
                 })
-                
+
             },
             get_stats: function() {
                 let me = this
@@ -771,9 +830,13 @@
                 }
                 //TODO: improve this so it only starts off updating the active tab
                 this.get_domains()
+                this.get_tagnames('domain')
                 this.get_ips()
+                this.get_tagnames('ip')
                 this.get_urls()
+                this.get_tagnames('url')
                 this.get_services()
+                this.get_tagnames('service')
                 this.get_stats()
             },
             listen_for_changes: function() {
@@ -822,9 +885,6 @@
                 }).on('error', function() {
                     // handle errors
                 })
-            },
-            search_table: function() {
-                return 1
             },
             load_records: function(type) {
                 if (type == 'domains') {
