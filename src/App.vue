@@ -137,7 +137,7 @@
                                     </span>
                                 </div>
                                 <br />
-                                <b-table show-empty striped bordered :busy="docs.table.isBusy" :items="records_filtered(doctype)" :fields="fields_filtered(doctype)" :options="docs.table.options" :id="'tbl-'+doctype" :per-page="table_pagination_records" :current-page="docs.table.current_page">
+                                <b-table show-empty striped bordered :busy="docs.table.isBusy" :items="records_filtered(doctype)" :fields="handle_computed_call(`fields_filtered_${doctype}`)" :options="docs.table.options" :id="'tbl-'+doctype" :per-page="table_pagination_records" :current-page="docs.table.current_page">
                                     <template #table-busy>
                                         <div class="text-center">
                                             <p>
@@ -481,40 +481,127 @@
             }
         },
         computed: {
-            fields_filtered: function() {
-                let vm = this
-                return function(doctype) {
-                    var documents = vm.docstore[doctype]
-                    var results = []
-                    if (!vm.program) {
-                        results = documents.table.fields
-                    } else {
-                        results = documents.table.fields.filter(function(field) {
-                            if (field.key != 'doc.program') return true
-                        })
-                    }
-
-                    // filter out IP addresses if we're looking at unresolved data
-                    if (doctype == 'domains' && documents.filter_domains == 'unresolved') {
-                        results = results.filter(function(field) {
-                            if (field.key != 'doc.ips') return true
-                        })
-                    }
-
-                    // add custom tags if they are toggled on:
-                    for (var t in documents.tagnames) {
-                        var tag = documents.tagnames[t]
-                        if (tag.show) {
-                            results.push({
-                                key: `doc.tags.${tag.name}`,
-                                label: tag.name,
-                                sortable: true
-                            })
-                        }
-                    }
-
-                    return results
+            
+            // I feel silly having to duplicate the following function
+            // for each document type, but I can't figure out how to use
+            // arguments on computed properties while still preserving
+            // the benefits of computed property caching.
+            // 
+            // At the moment, these fields are only calculated once,
+            // which leads to much better performance than the crazy amounts
+            // of recalculation that happened before I changed this.
+            fields_filtered_domains: function() {
+                var documents = this.docstore['domains']
+                
+                var results = []
+                if (!this.program) {
+                    results = documents.table.fields.slice()
+                } else {
+                    results = documents.table.fields.filter(function(field) {
+                        if (field.key != 'doc.program') return true
+                    })
                 }
+
+                // filter out IP addresses if we're looking at unresolved data
+                if (documents.filter_domains == 'unresolved') {
+                    results = results.filter(function(field) {
+                        if (field.key != 'doc.ips') return true
+                    })
+                }
+
+                // add custom tags if they are toggled on:
+                for (var t in documents.tagnames) {
+                    var tag = documents.tagnames[t]
+                    if (tag.show) {
+                        console.log(tag.show)
+                        results.push({
+                            key: `doc.tags.${tag.name}`,
+                            label: tag.name,
+                            sortable: true
+                        })
+                    }
+                }
+
+                return results
+            },
+            fields_filtered_ips: function() {
+                var documents = this.docstore['ips']
+                
+                var results = []
+                if (!this.program) {
+                    results = documents.table.fields.slice()
+                } else {
+                    results = documents.table.fields.filter(function(field) {
+                        if (field.key != 'doc.program') return true
+                    })
+                }
+
+                // add custom tags if they are toggled on:
+                for (var t in documents.tagnames) {
+                    var tag = documents.tagnames[t]
+                    console.log(documents.tagnames.length, t, tag)
+                    if (tag.show) {
+                        results.push({
+                            key: `doc.tags.${tag.name}`,
+                            label: tag.name,
+                            sortable: true
+                        })
+                    }
+                }
+
+                return results
+            },
+            fields_filtered_urls: function() {
+                var documents = this.docstore['urls']
+                
+                var results = []
+                if (!this.program) {
+                    results = documents.table.fields.slice()
+                } else {
+                    results = documents.table.fields.filter(function(field) {
+                        if (field.key != 'doc.program') return true
+                    })
+                }
+
+                // add custom tags if they are toggled on:
+                for (var t in documents.tagnames) {
+                    var tag = documents.tagnames[t]
+                    if (tag.show) {
+                        results.push({
+                            key: `doc.tags.${tag.name}`,
+                            label: tag.name,
+                            sortable: true
+                        })
+                    }
+                }
+
+                return results
+            },
+            fields_filtered_services: function() {
+                var documents = this.docstore['services']
+                
+                var results = []
+                if (!this.program) {
+                    results = documents.table.fields.slice()
+                } else {
+                    results = documents.table.fields.filter(function(field) {
+                        if (field.key != 'doc.program') return true
+                    })
+                }
+
+                // add custom tags if they are toggled on:
+                for (var t in documents.tagnames) {
+                    var tag = documents.tagnames[t]
+                    if (tag.show) {
+                        results.push({
+                            key: `doc.tags.${tag.name}`,
+                            label: tag.name,
+                            sortable: true
+                        })
+                    }
+                }
+
+                return results
             },
 
             records_filtered: function() {
@@ -531,8 +618,9 @@
                         var all_fields_match = true || row
 
                         // compare every column of the row to the filters
-                        for (var i in vm.fields_filtered(doctype)) {
-                            var field = vm.fields_filtered(doctype)[i].key
+                        var filtered_fields = vm.handle_computed_call('fields_filtered_'+doctype)
+                        for (var i in filtered_fields) {
+                            var field = filtered_fields[i].key
                             if (field in documents.table.filters && documents.table.filters[field].length > 0) {
 
                                 var filter = documents.table.filters[field]
@@ -721,9 +809,12 @@
             get_tagnames: function(doctype) {
                 let me = this
 
-                me.docstore[doctype + 's'].tagnames = []
+                this.docstore[doctype + 's'].tagnames = []
 
-                this.db.query('bbrf/tagnames_by_program_doctype?key=["' + this.program + '","' + doctype + '"]').then(function(response) {
+                var endpoint = 'bbrf/tagnames_by_program_doctype?key=["' + this.program + '","' + doctype + '"]'
+                if(this.program == null)
+                    endpoint = 'bbrf/tagnames_by_doctype?key="' + doctype + '"'
+                this.db.query(endpoint).then(function(response) {
                     for (var i in response.rows) {
                         if (me.docstore[doctype + 's'].tagnames.map(x => x.name).indexOf(response.rows[i].value) == -1) {
                             me.docstore[doctype + 's'].tagnames.push({
@@ -905,8 +996,10 @@
                         return row.id
                     }
                 ).join("\n");
+            },
+            handle_computed_call: function(function_name) {
+                return this[function_name]
             }
-
         },
         watch: {
             'docstore.domains.filter_domains': function() {
