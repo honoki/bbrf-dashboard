@@ -260,9 +260,9 @@
         data: function() {
             return {
                 title: "BBRF dashboard",
-                couchdb: localStorage.getItem('couchdb'),
-                couchdb_user: localStorage.getItem('couchdb-user'),
-                couchdb_pass: localStorage.getItem('couchdb-pass'),
+                couchdb: localStorage.getItem('couchdb') ? localStorage.getItem('couchdb') : 'https://demo.bbrf.me/bbrf',
+                couchdb_user: localStorage.getItem('couchdb-user') ? localStorage.getItem('couchdb-user') : 'bbrf',
+                couchdb_pass: localStorage.getItem('couchdb-pass') ? localStorage.getItem('couchdb-pass') : 'bbrf',
                 program: null,
                 stats: {
                     programs: 0,
