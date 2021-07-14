@@ -135,6 +135,12 @@
                                     <span v-b-tooltip title="Toggle your custom tags to add them as columns to the data table.">
                                         <b-icon icon="info-circle-fill" scale="1" variant="black"></b-icon>
                                     </span>
+                                    <br /><br />
+                                    <input title="Automatically parse UNIX timestamp" type="checkbox" v-model="parse_timestamps"/>&nbsp;
+                                    <span class="small">Automatically parse UNIX timestamps&nbsp;</span>
+                                    <span v-b-tooltip title="Custom tags that look like UNIX timestamps will be automatically converted to a readable time format">
+                                        <b-icon icon="info-circle-fill" scale="1" variant="black"></b-icon>
+                                    </span>
                                 </div>
                                 <br />
                                 <b-table show-empty striped bordered :busy="docs.table.isBusy" :items="records_filtered(doctype)" :fields="handle_computed_call(`fields_filtered_${doctype}`)" :options="docs.table.options" :id="'tbl-'+doctype" :per-page="table_pagination_records" :current-page="docs.table.current_page">
@@ -297,7 +303,7 @@
                         filters: {
                             key: '',
                             id: '',
-                        },
+                        }
                     }
                 },
                 docstore: {
@@ -311,7 +317,11 @@
                             fields: [{
                                     key: 'id',
                                     label: 'Domain',
-                                    sortable: true
+                                    sortable: true,
+                                    formatter: value => {
+                                        if(value.startsWith('._')) return value.substring(1)
+                                        return value
+                                    }
                                 },
                                 {
                                     key: 'doc.ips',
@@ -477,7 +487,8 @@
                 page_size: 2000,
                 last_refresh: 0,
                 is_updating: false,
-                active_tab: 'domains'
+                active_tab: 'domains',
+                parse_timestamps: true
             }
         },
         computed: {
@@ -513,11 +524,11 @@
                 for (var t in documents.tagnames) {
                     var tag = documents.tagnames[t]
                     if (tag.show) {
-                        console.log(tag.show)
                         results.push({
                             key: `doc.tags.${tag.name}`,
                             label: tag.name,
-                            sortable: true
+                            sortable: true,
+                            formatter: value => { return this.formatTagAsTimestamp(value) }
                         })
                     }
                 }
@@ -539,12 +550,12 @@
                 // add custom tags if they are toggled on:
                 for (var t in documents.tagnames) {
                     var tag = documents.tagnames[t]
-                    console.log(documents.tagnames.length, t, tag)
                     if (tag.show) {
                         results.push({
                             key: `doc.tags.${tag.name}`,
                             label: tag.name,
-                            sortable: true
+                            sortable: true,
+                            formatter: value => { return this.formatTagAsTimestamp(value) }
                         })
                     }
                 }
@@ -570,7 +581,8 @@
                         results.push({
                             key: `doc.tags.${tag.name}`,
                             label: tag.name,
-                            sortable: true
+                            sortable: true,
+                            formatter: value => { return this.formatTagAsTimestamp(value) }
                         })
                     }
                 }
@@ -596,7 +608,8 @@
                         results.push({
                             key: `doc.tags.${tag.name}`,
                             label: tag.name,
-                            sortable: true
+                            sortable: true,
+                            formatter: value => { return this.formatTagAsTimestamp(value) }
                         })
                     }
                 }
@@ -828,7 +841,10 @@
                         // might start aggregating loads of filters that don't actually
                         // belong to the currently active program
                         if (Object.keys(me.docstore[doctype + 's'].table.filters).indexOf(response.rows[i].value) == -1) {
-                            me.docstore[doctype + 's'].table.filters[response.rows[i].value] = ''
+                            // actually it turns out this is not needed (and not even working)
+                            // because v-model automatically adds the field e.g. "doc.tags.protocol" (and not "protocol")
+                            // when rendering the filter boxes
+                            // me.docstore[doctype + 's'].table.filters[response.rows[i].value] = ''
                         }
                     }
 
@@ -999,6 +1015,14 @@
             },
             handle_computed_call: function(function_name) {
                 return this[function_name]
+            },
+            formatTagAsTimestamp: function(value) {
+                 if(this.parse_timestamps && parseInt(value)+'' === value && value.length == 10) {
+                    var parsed = this.moment(parseInt(value)*1000).fromNow();
+                    if(parsed !== 'Invalid date')
+                        return parsed;
+                }
+                return value;
             }
         },
         watch: {

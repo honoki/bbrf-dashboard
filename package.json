@@ -10,6 +10,7 @@
   "dependencies": {
     "bootstrap-vue": "^2.20.1",
     "core-js": "^3.6.5",
+    "moment": "^2.29.1",
     "pouchdb": "^7.2.2",
     "v-copy": "^0.1.0",
     "vue": "^2.6.11",
