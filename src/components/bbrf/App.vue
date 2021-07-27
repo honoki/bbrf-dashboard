@@ -1,231 +1,12 @@
-<template>
-    <div id="app">
-        <nav class="navbar navbar-dark bg-dark">
-            <form>
-                <div class="form-row align-items-center">
-                    <div class="col-auto">
-                        <label class="sr-only" for="inlineFormInputGroup">Username</label>
-                        <div class="input-group mb-2">
-                            <div class="input-group-prepend">
-                                <a href="https://github.com/honoki/bbrf-server" class="nohref">
-                                    <div class="input-group-text">
-                                        BBRF server
-                                    </div>
-                                </a>
-                            </div>
-                            <input type="text" size="100" class="form-control" id="inlineFormInputGroup" placeholder="http://localhost:5984/bbrf" v-model="couchdb">
-                        </div>
-                    </div>
-                    <div class="col-auto">
-                        <div class="input-group mb-2">
-                            <div class="input-group-prepend">
-                                <div class="input-group-text">username</div>
-                            </div>
-                            <input type="text" size="5" class="form-control" id="inlineFormInputGroup" placeholder="bbrf" v-model="couchdb_user">
-                        </div>
-                    </div>
-                    <div class="col-auto">
-                        <div class="input-group mb-2">
-                            <div class="input-group-prepend">
-                                <div class="input-group-text">password</div>
-                            </div>
-                            <input type="password" size="10" class="form-control" id="inlineFormInputGroup" v-model="couchdb_pass">
-                        </div>
-                    </div>
-                    <div class="col-auto">
-                        <button type="submit" class="btn btn-primary mb-2" @click.prevent="connect_server">Connect</button>
-                    </div>
-                </div>
-            </form>
-        </nav>
-        <div class="container">
-            <p><br /></p>
-            <b-tabs pills>
-                <b-tab title="Programs">
-                    <p><br /></p>
-
-                    <div class="row">
-                        <div class="col-sm-2">
-                            <div class="card">
-                                <div class="card-body text-center">
-                                    <h5 class="card-title">{{ stats.programs.toLocaleString() }}</h5>
-                                    <p class="card-text">Programs</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-sm-2">
-                            <div class="card">
-                                <div class="card-body text-center">
-                                    <h5 class="card-title">{{ stats.domains.toLocaleString() }}</h5>
-                                    <p class="card-text">Domains</p>
-                                    <p class="small">{{stats.domains_resolved.toLocaleString() }} resolved ({{ ((stats.domains_resolved*100/stats.domains).toFixed(2)) }}%)</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-sm-2">
-                            <div class="card">
-                                <div class="card-body text-center">
-                                    <h5 class="card-title">{{ stats.ips.toLocaleString() }}</h5>
-                                    <p class="card-text">IPs</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-sm-2">
-                            <div class="card">
-                                <div class="card-body text-center">
-                                    <h5 class="card-title">{{ stats.urls.toLocaleString() }}</h5>
-                                    <p class="card-text">URLs</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-sm-2">
-                            <div class="card">
-                                <div class="card-body text-center">
-                                    <h5 class="card-title">{{ stats.services.toLocaleString() }}</h5>
-                                    <p class="card-text">Services</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <p><br /></p>
-
-                    <p><br /></p>
-                    <div class="form-group">
-                        <label for="programSelect">Select a program below to load data tables. <span v-b-tooltip title="Only showing enabled programs with a defined inscope">
-                                <b-icon icon="info-circle-fill" scale="1" variant="black"></b-icon>
-                            </span></label>
-                        <select @change="select_program" v-model="program" class="form-control" id="programSelect">
-                            <option value="SHOWALL">Load all programs (this may be heavy on your browser)</option>
-                            <option v-for="program in programs" v-bind:key="program.id">{{ program.id }}</option>
-                        </select>
-                    </div>
-                    <div align="right" v-if="program_doc && program_doc.hasOwnProperty('doc')">
-                        <b-button v-b-toggle.collapse-1 variant="outline-secondary">Show program details</b-button>
-                        <b-collapse id="collapse-1" class="mt-2">
-                            <b-card align="left">
-                                <pre><code>{{ program_doc.doc }}</code></pre>
-                            </b-card>
-                        </b-collapse>
-                    </div>
-
-
-                    <br />
-
-                    <div>
-                        <b-tabs>
-                            <b-tab v-for="(docs, doctype) in docstore" :key="doctype" :title="docs.display_value" @click.prevent="active_tab=doctype">
-                                <div v-if="doctype == 'domains'">
-                                    <br />
-                                    <div class="card">
-                                        <div class="card-body">
-                                            <b-form-radio v-model="docstore.domains.filter_domains" name="domain-filter" value="all">Show all</b-form-radio>
-                                            <b-form-radio v-model="docstore.domains.filter_domains" name="domain-filter" value="resolved">Resolved only</b-form-radio>
-                                            <b-form-radio v-model="docstore.domains.filter_domains" name="domain-filter" value="unresolved">Unresolved only</b-form-radio>
-                                        </div>
-                                    </div>
-                                </div>
-                                <br />
-                                <b-pagination v-model="docs.table.current_page" :total-rows="records_filtered(doctype).length" :per-page="table_pagination_records" :aria-controls="'tbl-'+doctype" align="center"></b-pagination>
-                                <div v-if="docs.tagnames.length > 0">
-                                    <span v-for="tag in docs.tagnames" :key="tag.name">
-                                        <b-button pill size="sm" :pressed.sync="tag.show" variant="outline-primary">{{ tag.name }}</b-button>
-                                        {{ '&nbsp;' }}
-                                    </span>
-                                    &nbsp;
-                                    <span v-b-tooltip title="Toggle your custom tags to add them as columns to the data table.">
-                                        <b-icon icon="info-circle-fill" scale="1" variant="black"></b-icon>
-                                    </span>
-                                    <br /><br />
-                                    <input title="Automatically parse UNIX timestamp" type="checkbox" v-model="parse_timestamps"/>&nbsp;
-                                    <span class="small">Automatically parse UNIX timestamps&nbsp;</span>
-                                    <span v-b-tooltip title="Custom tags that look like UNIX timestamps will be automatically converted to a readable time format">
-                                        <b-icon icon="info-circle-fill" scale="1" variant="black"></b-icon>
-                                    </span>
-                                </div>
-                                <br />
-                                <b-table show-empty striped bordered :busy="docs.table.isBusy" :items="records_filtered(doctype)" :fields="handle_computed_call(`fields_filtered_${doctype}`)" :options="docs.table.options" :id="'tbl-'+doctype" :per-page="table_pagination_records" :current-page="docs.table.current_page">
-                                    <template #table-busy>
-                                        <div class="text-center">
-                                            <p>
-                                                <b-spinner class="align-middle"></b-spinner>
-                                            </p>
-                                            <p><strong>Loading...</strong></p>
-                                        </div>
-                                    </template>
-                                    <template slot="top-row" slot-scope="{ fields }">
-                                        <td v-for="field in fields" :key="field.key">
-                                            <input type="search" width="80%" v-model="docs.table.filters[field.key]" placeholder="filter" :class="'form-control' + (field.key in docs.table.filters && docs.table.filters[field.key].length > 0 ? ' bg-light border-warning' : '')"/>
-                                        </td>
-                                    </template>
-                                    <template slot="bottom-row" v-if="program" :set="total = 999">
-                                        <td colspan="100%" align="center" class="small">
-                                            Loaded {{ docs.records.length.toLocaleString() }} of
-                                            <span v-if="doctype != 'domains' || docs.filter_domains == 'all'" :set="total = stats[doctype]">
-                                                {{ total.toLocaleString() }}
-                                            </span>
-                                            <span v-else>
-                                                <span :set="total = stats[''+doctype+'_'+docs.filter_domains]">
-                                                    {{ total.toLocaleString() }}
-                                                </span>
-                                            </span>
-                                            records
-                                            <span v-if="total > docs.records.length">&bull; <a href="#" @click.prevent="load_records(doctype)">load {{ (Math.min(page_size, total - docs.records.length)).toLocaleString() }} more</a></span>
-
-                                        </td>
-                                    </template>
-                                </b-table>
-                                <div align="right" style="margin-bottom:2em;">
-                                    <b-button v-clipboard:copy="format_clipboard(records_filtered(doctype))" variant="outline-secondary" size="sm">Copy to clipboard</b-button>
-                                </div>
-                                <b-pagination v-model="docs.table.current_page" :total-rows="records_filtered(doctype).length" :per-page="table_pagination_records" :aria-controls="'tbl-'+doctype" align="center"></b-pagination>
-
-                            </b-tab>
-                        </b-tabs>
-                    </div>
-                </b-tab>
-
-                <b-tab title="Alerts">
-                    <div align="right">
-                        <b-pagination v-model="alerts.table.current_page" :total-rows="alerts.records.length" :per-page="table_pagination_records" aria-controls="tbl-alerts" align="center"></b-pagination>
-                        <b-table show-empty striped bordered borderless hover id="tbl-alerts" :items="alerts.records" :per-page="table_pagination_records" :current-page="alerts.table.current_page" :fields="alerts.table.fields" :options="alerts.table.options" :busy="alerts.table.isBusy">
-                            <template #table-busy>
-                                <div class="text-center">
-                                    <p>
-                                        <b-spinner class="align-middle"></b-spinner>
-                                    </p>
-                                    <p><strong>Loading...</strong></p>
-                                </div>
-                            </template>
-                            <template #cell(key)="data">
-                                <span v-b-tooltip :title="new Date(data.item.key * 1000) | moment('dddd, MMMM Do YYYY, h:mm:ss a')">{{new Date(data.item.key*1000) | moment("from") }}</span>
-                            </template>
-                            <template slot="bottom-row">
-                                <td colspan="100%" align="center" class="small">
-                                    <span><a href="#" @click.prevent="load_records('alerts')">load more</a></span>
-                                </td>
-                            </template>
-                        </b-table>
-                        <b-pagination v-model="alerts.table.current_page" :total-rows="alerts.records.length" :per-page="table_pagination_records" aria-controls="tbl-alerts" align="center"></b-pagination>
-                    </div>
-                </b-tab>
-            </b-tabs>
-
-        </div>
-        <footer class="footer">
-            <div class="container" id="footer">
-                <center>
-                    <hr />
-                    <p class="small">
-                        Created with &hearts; by <a href="https://twitter.com/honoki">@honoki</a>
-                        &bull;
-                        <a href="https://github.com/honoki/bbrf-dashboard">GitHub</a>
-                    </p>
-                </center>
-            </div>
-        </footer>
-    </div>
-
-</template>
+<style scoped>
+.full-width {
+    width: 98vw;
+    position: relative;
+    margin-left: -49vw;
+    left: 50%;
+}
+</style>
+<template src="./main.html"></template>
 
 <script>
     import {
@@ -233,7 +14,12 @@
         BTab,
         BTable,
         BPagination,
+        BForm,
+        BFormGroup,
         BFormRadio,
+        BFormInput,
+        BFormCheckbox,
+        BNavbar,
         BSpinner,
         BCollapse,
         BButton,
@@ -253,7 +39,12 @@
             BPagination,
             BTabs,
             BTab,
+            BForm,
+            BFormGroup,
             BFormRadio,
+            BFormInput,
+            BFormCheckbox,
+            BNavbar,
             BSpinner,
             BCollapse,
             BButton,
@@ -488,7 +279,18 @@
                 last_refresh: 0,
                 is_updating: false,
                 active_tab: 'domains',
-                parse_timestamps: true
+                settings: {
+                    parse_timestamps: {
+                        description: 'Automatically parse UNIX timestamps',
+                        info: 'Custom tags that look like UNIX timestamps will be automatically converted to a readable time format',
+                        value: JSON.parse(localStorage.getItem('settings.parse_timestamps')) ?? true
+                    },
+                    full_width_table: {
+                        description: 'Display data tables full page width',
+                        info: 'Make the data table containing domains, IPs, URLs and services span the full width of the page',
+                        value: JSON.parse(localStorage.getItem('settings.full_width_table')) ?? false
+                    }
+                }
             }
         },
         computed: {
@@ -671,6 +473,11 @@
                 })[0]
 
                 return document
+            },
+
+            connection_status: function() {
+                if(this.programs.length > 0) return "connected"
+                return "not connected"
             }
         },
         created: function() {
@@ -1017,12 +824,17 @@
                 return this[function_name]
             },
             formatTagAsTimestamp: function(value) {
-                 if(this.parse_timestamps && parseInt(value)+'' === value && value.length == 10) {
+                 if(this.settings.parse_timestamps.value && parseInt(value)+'' === value && value.length == 10) {
                     var parsed = this.moment(parseInt(value)*1000).fromNow();
                     if(parsed !== 'Invalid date')
                         return parsed;
                 }
                 return value;
+            },
+            save_settings: function() {
+                for(var setting in this.settings) {
+                    localStorage.setItem('settings.'+setting, this.settings[setting].value)
+                }
             }
         },
         watch: {

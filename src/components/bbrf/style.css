@@ -1,0 +1,6 @@
+.full-width {
+    width: 100%;
+    position: relative;
+    margin-left: -50vw;
+    left: 50%;
+}
