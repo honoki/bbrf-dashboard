@@ -67,10 +67,12 @@
                     </select>
                 </div>
                 <div align="right" v-if="program_doc && program_doc.hasOwnProperty('doc')">
-                    <b-button v-b-toggle.collapse-1 variant="outline-secondary">Show program details</b-button>
+                    <b-button v-b-toggle.collapse-1 variant="outline-secondary" @click="toggleProgramDetails">
+                        {{ showProgramDetails ? 'Hide program details' : 'Show program details' }}
+                    </b-button>
                     <b-collapse id="collapse-1" class="mt-2">
                         <b-card align="left">
-                            <pre><code>{{ program_doc.doc }}</code></pre>
+                            <pre><code v-html="highlightedProgramDetails"></code></pre>
                         </b-card>
                     </b-collapse>
                 </div>
@@ -80,7 +82,7 @@
 
                 <div>
                     <b-tabs>
-                        <b-tab v-for="(docs, doctype) in docstore" :key="doctype" :title="docs.display_value" @click.prevent="active_tab=doctype">
+                        <b-tab v-for="(docs, doctype) in docstore" :key="doctype" :title="docs.display_value" @click.prevent="active_tab = doctype" :active="active_tab === doctype">
                             <div v-if="doctype == 'domains'">
                                 <br />
                                 <div class="card">
@@ -104,8 +106,16 @@
                                 </span>
                             </div>
                             <br />
-                            <b-table :class="settings.full_width_table.value ? 'full-width' : ''" show-empty striped bordered :busy="docs.table.isBusy" :items="records_filtered(doctype)" :fields="handle_computed_call(`fields_filtered_${doctype}`)" :options="docs.table.options" :id="'tbl-'+doctype" :per-page="table_pagination_records" :current-page="docs.table.current_page">
-                            
+                            <b-table :class="settings.full_width_table.value ? 'full-width' : ''" show-empty striped bordered :busy="docs.table.isBusy" :items="records_filtered(doctype)" :fields="fields_filtered(doctype)" :options="docs.table.options" :id="'tbl-'+doctype" :per-page="table_pagination_records" :current-page="docs.table.current_page">
+                                <template #cell(doc.ips)="data">
+                                    <span v-html="formatClickableDocuments(data.value)" @click.prevent="handleDocumentClick"></span>
+                                </template>
+                                <template #cell(doc.domains)="data">
+                                    <span v-html="formatClickableDocuments(data.value)" @click.prevent="handleDocumentClick"></span>
+                                </template>
+                                <template #cell(doc.hostname)="data">
+                                    <span v-html="formatClickableDocuments(data.value)" @click.prevent="handleDocumentClick"></span>
+                                </template>
                                 <template #table-busy>
                                     <div class="text-center">
                                         <p>
@@ -131,7 +141,7 @@
                                             </span>
                                         </span>
                                         records
-                                        <span v-if="total > docs.records.length">&bull; <a href="#" @click.prevent="load_records(doctype)">load {{ (Math.min(page_size, total - docs.records.length)).toLocaleString() }} more</a></span>
+                                        <span v-if="total > docs.records.length">&bull; <a href="#" @click.prevent="load_more_records(doctype)">load {{ (Math.min(page_size, total - docs.records.length)).toLocaleString() }} more</a></span>
 
                                     </td>
                                 </template>
@@ -163,7 +173,7 @@
                         </template>
                         <template slot="bottom-row">
                             <td colspan="100%" align="center" class="small">
-                                <span><a href="#" @click.prevent="load_records('alerts')">load more</a></span>
+                                <span><a href="#" @click.prevent="load_more_records('alerts')">load more</a></span>
                             </td>
                         </template>
                     </b-table>
@@ -205,9 +215,9 @@
                           ></b-form-input>
                         </b-form-group>
 
-                        <b-form-group id="server-settings-password" label="Password:" label-for="bbrf-username">
+                        <b-form-group id="server-settings-password" label="Password:" label-for="bbrf-password">
                             <b-form-input
-                              id="bbrf-username"
+                              id="bbrf-password"
                               type="password"
                               v-model="couchdb_pass"
                               placeholder="bbrf"
@@ -247,11 +257,15 @@
             <center>
                 <hr />
                 <p class="small">
-                    Created with &hearts; by <a href="https://twitter.com/honoki">@honoki</a>
+                    Created with &hearts; by <a href="https://infosec.exchange/@honoki">@honoki</a>
                     &bull;
                     <a href="https://github.com/honoki/bbrf-dashboard">GitHub</a>
                 </p>
             </center>
         </div>
     </footer>
+    <b-modal id="doc-info-modal" :title="selectedDocument" hide-footer scrollable>
+        <pre v-if="docInfo"><code v-html="docInfo"></code></pre>
+        <p v-else>Loading...</p>
+      </b-modal>
 </div>
