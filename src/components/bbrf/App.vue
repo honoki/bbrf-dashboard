@@ -324,9 +324,17 @@ export default {
     computed: {
 
         fields_filtered() { // generalized attempt
-            console.log("fields_filtered called")
+
+            let vm = this
+            
             return (docType) => {
+                
                 const documents = this.docstore[docType];
+
+                // skip filtering if the tab is not currently active
+                if(docType !== vm.active_tab) {
+                    return vm.docstore[docType].records
+                }
 
                 let results = this.program
                     ? documents.table.fields.filter(field => field.key !== 'doc.program')
@@ -352,21 +360,31 @@ export default {
             };
         },
 
-        records_filtered: function () {
+       records_filtered: function () {
             // only return rows that match the filter value
-
+            
             let vm = this
 
             return function (doctype) {
+
+                // skip filtering if the tab is not currently active
+                if(doctype !== vm.active_tab) {
+                    return vm.docstore[doctype].records
+                }
+
+                console.log("records_filtered called for " + doctype)
+                console.time('records_filtered_' + doctype);
+
                 var documents = vm.docstore[doctype]
                 var results = documents.records
+                var filtered_fields = vm.fields_filtered(doctype)
 
                 results = results.filter(function (row) {
 
                     var all_fields_match = true || row
 
                     // compare every column of the row to the filters
-                    var filtered_fields = vm.fields_filtered(doctype)
+                    // var filtered_fields = vm.fields_filtered(doctype)
                     for (var i in filtered_fields) {
                         var field = filtered_fields[i].key
                         if (field in documents.table.filters && documents.table.filters[field].length > 0) {
@@ -382,7 +400,8 @@ export default {
                                 // do nothing
                             }
 
-                            if (value && !value.toString().includes(filter)) {
+                            // fix #3: filter should be case insensitive
+                            if (value && !value.toString().toLowerCase().includes(filter.toLowerCase())) {
                                 all_fields_match = false
                             } else if (!value) {
                                 all_fields_match = false
@@ -393,6 +412,7 @@ export default {
 
                     return all_fields_match
                 })
+                console.timeEnd('records_filtered_' + doctype);
 
                 return results
             }
@@ -423,6 +443,9 @@ export default {
     methods: {
         async initializeApp() {
             this.isLoading = true
+            if (this.$route.params.tab) {
+                this.active_tab = this.$route.params.tab
+            }
             if (this.couchdb) {
                 await this.connect_server()
                 this.isConnected = true
@@ -432,9 +455,6 @@ export default {
                     await this.select_program()
                 }
 
-                if (this.$route.params.tab) {
-                    this.active_tab = this.$route.params.tab
-                }   
             }
             this.isLoading = false
         },
@@ -815,10 +835,10 @@ export default {
     },
     watch: {
         async $route(to, from) {
+            if (to.params.tab !== from.params.tab) {
+                this.active_tab = to.params.tab
+            }
             if (this.isConnected) {
-                if (to.params.tab !== from.params.tab) {
-                    this.active_tab = to.params.tab
-                }
                 if (to.params.program !== from.params.program) {
                     this.program = to.params.program || null
                     await this.select_program()

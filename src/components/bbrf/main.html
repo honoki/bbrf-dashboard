@@ -126,7 +126,7 @@
                                 </template>
                                 <template slot="top-row" slot-scope="{ fields }">
                                     <td v-for="field in fields" :key="field.key">
-                                        <input type="search" width="80%" v-model="docs.table.filters[field.key]" placeholder="filter" :class="'form-control' + (field.key in docs.table.filters && docs.table.filters[field.key].length > 0 ? ' bg-light border-warning' : '')"/>
+                                        <b-form-input type="search" width="80%" v-model="docs.table.filters[field.key]" placeholder="filter" debounce="250" :class="'form-control' + (field.key in docs.table.filters && docs.table.filters[field.key].length > 0 ? ' bg-light border-warning' : '')"/>
                                     </td>
                                 </template>
                                 <template slot="bottom-row" v-if="program" :set="total = 999">
