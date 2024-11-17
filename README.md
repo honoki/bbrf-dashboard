@@ -1,5 +1,6 @@
 [![Netlify Status](https://api.netlify.com/api/v1/badges/96319539-ab95-43f1-be3b-1c1d0ced0b80/deploy-status)](https://app.netlify.com/sites/bbrf/deploys)
-[![Twitter Follow](https://img.shields.io/twitter/follow/honoki?style=flat-square)](https://twitter.com/honoki)
+[![Mastodon](https://img.shields.io/mastodon/follow/110779442452085429?domain=https%3A%2F%2Finfosec.exchange&style=flat-square&logo=mastodon&logoColor=fff)](https://infosec.exchange/@honoki)
+[![BlueSky](https://img.shields.io/badge/@honoki.net-0285FA?logo=bluesky&logoColor=fff&style=flat-square)](https://bsky.app/profile/honoki.net)
 
 ## Introduction
 
@@ -17,6 +18,7 @@ If you like browsing through your recon data with a GUI, you can use the BBRF da
 
 * Select a program and view the program details;
 * View your domains, IPs, URLs and services in a clear overview;
+* Click an IP or domain to view the full document;
 * Switch between unresolved and resolved domains;
 * Filter your data with the search boxes on the data tables;
 * Copy all identifiers from the first column with the "Copy to clipboard" button below the data tables;
