@@ -56,20 +56,27 @@
                 </div>
                 <p><br /></p>
 
-                <p><br /></p>
                 <div class="form-group">
-                    <label for="programSelect">Select a program below to load data tables. <span v-b-tooltip title="Only showing enabled programs with a defined inscope">
+                    <div class="d-flex align-items-center">
+                        <span style="margin-right: 10px;">Select program</span>
+                        <span v-b-tooltip title="Only showing enabled programs with a defined inscope">
                             <b-icon icon="info-circle-fill" scale="1" variant="black"></b-icon>
-                        </span></label>
-                    <select @change="select_program" v-model="program" class="form-control" id="programSelect">
-                        <option value="SHOWALL">Load all programs (this may be heavy on your browser)</option>
-                        <option v-for="program in programs" v-bind:key="program.id">{{ program.id }}</option>
-                    </select>
+                        </span>
+                        <span style="margin-right: 10px;"></span>
+                        <select @change="select_program" v-model="program" class="form-control col-5 mr-2" id="programSelect">
+                            <option value="SHOWALL">Load all programs (this may be heavy on your browser)</option>
+                            <option v-for="program in programs" v-bind:key="program.id">{{ program.id }}</option>
+                        </select>
+                        <b-button v-if="program_doc && program_doc.hasOwnProperty('doc')" v-b-toggle.collapse-1 variant="outline-secondary" @click="toggleProgramDetails">
+                            {{ showProgramDetails ? 'Hide details' : 'Show details' }}
+                        </b-button>
+                        <span style="margin-right: 10px;"></span>
+                        <b-form-checkbox v-model="autoUpdate" switch>
+                            Auto-update
+                        </b-form-checkbox>
+                    </div>
                 </div>
                 <div align="right" v-if="program_doc && program_doc.hasOwnProperty('doc')">
-                    <b-button v-b-toggle.collapse-1 variant="outline-secondary" @click="toggleProgramDetails">
-                        {{ showProgramDetails ? 'Hide program details' : 'Show program details' }}
-                    </b-button>
                     <b-collapse id="collapse-1" class="mt-2">
                         <b-card align="left">
                             <pre><code v-html="highlightedProgramDetails"></code></pre>

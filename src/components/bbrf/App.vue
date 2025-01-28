@@ -71,6 +71,7 @@ export default {
             couchdb_pass: localStorage.getItem('couchdb-pass') ? localStorage.getItem('couchdb-pass') : 'bbrf',
             isLoading: true,
             isConnected: false,
+            autoUpdate: true,
             program: null,
             stats: {
                 programs: 0,
@@ -372,8 +373,8 @@ export default {
                     return vm.docstore[doctype].records
                 }
 
-                console.log("records_filtered called for " + doctype)
-                console.time('records_filtered_' + doctype);
+                // console.log("records_filtered called for " + doctype)
+                // console.time('records_filtered_' + doctype);
 
                 var documents = vm.docstore[doctype]
                 var results = documents.records
@@ -412,7 +413,7 @@ export default {
 
                     return all_fields_match
                 })
-                console.timeEnd('records_filtered_' + doctype);
+                // console.timeEnd('records_filtered_' + doctype);
 
                 return results
             }
@@ -760,7 +761,7 @@ export default {
                 var now = (new Date()).getTime()
 
                 // only refresh once in a while to avoid stalling
-                if (!vm.is_updating && (now - vm.last_refresh) > 5000) {
+                if (vm.autoUpdate && !vm.is_updating && (now - vm.last_refresh) > 5000) {
 
                     /*console.log(now)
                     console.log(vm.last_refresh)
