@@ -83,6 +83,8 @@ export default {
                 services: 0
             },
             programs: [],
+            programs_tag_filters: {},
+            program_filters_collapsed: {},
             alerts: {
                 records: [], // will be populated by PouchDB
                 table: {
@@ -108,6 +110,29 @@ export default {
                         id: '',
                     }
                 }
+            },
+            queue: {
+               records: [], // will be populated by PouchDB
+               table: {
+                     isBusy: false,
+                     current_page: 1,
+                     fields: [{
+                          key: 'value.last_updated',
+                          label: 'Timestamp',
+                          sortable: true
+                     },
+                     {
+                          key: 'id',
+                          label: 'ID',
+                          sortable: true
+                     },
+                     {
+                          key: 'value.event',
+                          label: 'Event',
+                          sortable: true
+                     }
+                     ]
+                } 
             },
             docstore: {
                 domains: {
@@ -147,6 +172,7 @@ export default {
                             'doc.ips': '',
                             'doc.source': '',
                             'doc.program': ''
+                            
                         },
                         current_page: 1
                     }
@@ -324,6 +350,8 @@ export default {
     },
     computed: {
 
+         console: () => console,
+
         fields_filtered() { // generalized attempt
 
             let vm = this
@@ -429,6 +457,45 @@ export default {
             return document
         },
 
+        filtered_programs: function() {
+            var filtered_programs = []
+            
+            // Filter programs based on selected tags
+            if (!this.programs_tag_filters || Object.keys(this.programs_tag_filters).length === 0) {
+                return this.programs;
+            }
+
+            if (
+                Object.keys(this.programs_tag_filters).every(tag =>
+                    Object.values(this.programs_tag_filters[tag]).every(val => val === false)
+                )
+            ) {
+                return this.programs;
+            }
+
+            for(var filter_tagname in this.programs_tag_filters) { 
+                
+                if (Object.keys(this.programs_tag_filters[filter_tagname]).length === 0) {
+                    filtered_programs.push(this.programs);
+                }
+
+                for (const [filter_value, enabled] of Object.entries(this.programs_tag_filters[filter_tagname])) {
+                    if (enabled) {
+                        // filter is active, so if a program matches this tag, add it to the filtered list
+                        this.programs.forEach(program => {
+                            if (program.doc && program.doc.tags && program.doc.tags[filter_tagname] && program.doc.tags[filter_tagname].includes(filter_value)) {
+                                if (!filtered_programs.includes(program)) {
+                                    filtered_programs.push(program);
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+            
+            return filtered_programs;
+        },
+
         highlightedProgramDetails: function () {
             return this.$highlight(JSON.stringify(this.program_doc.doc, null, 2));
         },
@@ -492,7 +559,8 @@ export default {
                 await Promise.all([
                     this.get_programs(),
                     this.get_stats(),
-                    this.get_alerts()
+                    this.get_alerts(),
+                    // this.get_queue(),
                 ])
 
                 this.listen_for_changes()
@@ -586,7 +654,7 @@ export default {
         },
 
         handleDocumentClick(e) {
-            let doc_id = e.target.innerHTML
+            let doc_id = e.target.innerText;
             if (doc_id) {
                 this.showJSONDocument(doc_id)
             }
@@ -648,13 +716,56 @@ export default {
 
             this.db.query('bbrf/programs', options).then(function (response) {
                 for (var i = 0; i < response.rows.length; i++) {
-                    if (response.rows[i]['value'] > 0 && !response.rows[i]['doc']['disabled'])
+                    if (response.rows[i]['value'] > 0 && !response.rows[i]['doc']['disabled']) {
                         me.programs.push(response.rows[i])
+
+                        // and initiate the program filters by tags
+                        if (response.rows[i].doc.tags) {
+                            Object.keys(response.rows[i].doc.tags).forEach(tag => {
+                                if (!me.programs_tag_filters[tag]) {
+                                    me.programs_tag_filters[tag] = {};
+                                }
+                                if (Array.isArray(response.rows[i].doc.tags[tag])) {
+                                    for(let value of response.rows[i].doc.tags[tag]) {
+                                        if (!Object.keys(me.programs_tag_filters[tag]).includes(value)) {
+                                            me.programs_tag_filters[tag][value] = false;
+                                        }
+                                    }
+                                } else if (typeof response.rows[i].doc.tags[tag] === 'string') {
+                                    let value = response.rows[i].doc.tags[tag]
+                                    if (!Object.keys(me.programs_tag_filters[tag]).includes(value))
+                                        me.programs_tag_filters[tag][value] = false;
+                                }
+                                
+                            });
+                        }
+                    }
+                       
                 }
             }).catch(function () {
 
             })
+
         },
+
+        clearAllTagFilters: function() {
+            // Clear all tag filters
+            for (let tag in this.programs_tag_filters) {
+                for (let value in this.programs_tag_filters[tag]) {
+                    this.programs_tag_filters[tag][value] = false;
+                }
+            }
+            this.programs_tag_filters = JSON.parse(JSON.stringify(this.programs_tag_filters)); // Replace object to trigger reactivity
+        },
+
+        onTagFilterChange: function(tag, value, checked) {
+            // Update the filter state
+            if (this.programs_tag_filters[tag]) {
+                this.programs_tag_filters[tag][value] = checked;
+            }
+            this.programs_tag_filters = JSON.parse(JSON.stringify(this.programs_tag_filters)); // Replace object to trigger reactivity
+        },
+
         get_alerts: function (get_more = false) {
             let me = this
             var options = {
@@ -679,6 +790,30 @@ export default {
 
             })
 
+        },
+        get_queue: function (get_more = false) {
+            let me = this
+            var options = {
+                descending: true,
+                limit: this.page_size
+            }
+
+            // pagination is requested:
+            if (get_more) {
+                options.skip = me.queue.records.length
+            } else {
+                this.queue.records = []
+                this.queue.table.isBusy = true
+            }
+
+            this.db.query('bbrf/queue', options).then(function (response) {
+                for (var i = 0; i < response.rows.length; i++) {
+                    me.queue.records.push(response.rows[i])
+                }
+                me.queue.table.isBusy = false
+            }).catch(function () {
+
+            })
         },
         get_stats: function () {
             let me = this
