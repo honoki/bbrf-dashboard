@@ -71,6 +71,9 @@
                             {{ showProgramDetails ? 'Hide details' : 'Show details' }}
                         </b-button>
                         <span style="margin-right: 10px;"></span>
+                        <b-button variant="outline-secondary" @click="selectRandomProgram" v-b-tooltip title="Select random program">
+                            <b-icon icon="dice-5"></b-icon>
+                        </b-button>
                         <b-button variant="outline-primary" v-b-toggle.collapse-filter-menu class="ml-2">
                             <b-icon icon="funnel-fill"></b-icon> Filter
                         </b-button>

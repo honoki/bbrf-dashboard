@@ -871,6 +871,17 @@ export default {
                 request()
             }
         },
+        async selectRandomProgram() {
+            if (!this.filtered_programs || this.filtered_programs.length === 0) return
+
+            const randomIndex = Math.floor(Math.random() * this.filtered_programs.length)
+            const randomProgram = this.filtered_programs[randomIndex]
+
+            if (!randomProgram || !randomProgram.id) return
+
+            this.program = randomProgram.id
+            await this.select_program()
+        },
         async select_program() {
             this.setRouterNavigation()
             await Promise.all([
