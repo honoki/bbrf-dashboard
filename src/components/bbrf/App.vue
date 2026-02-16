@@ -37,9 +37,6 @@ import {
     VBTooltip,
 } from 'bootstrap-vue'
 
-import PouchDB from 'pouchdb'
-import 'bootstrap/dist/css/bootstrap.css'
-import 'bootstrap-vue/dist/bootstrap-vue.css'
 
 export default {
     name: 'App',
@@ -346,6 +343,9 @@ export default {
                 services: [],
                 stats: []
             },
+            pouchdbCtor: null,
+            highlightFn: null,
+            highlightReady: false,
         }
     },
     computed: {
@@ -497,7 +497,9 @@ export default {
         },
 
         highlightedProgramDetails: function () {
-            return this.$highlight(JSON.stringify(this.program_doc.doc, null, 2));
+            if (!this.program_doc || !this.program_doc.doc) return ''
+            this.highlightReady
+            return this.highlightJson(JSON.stringify(this.program_doc.doc, null, 2))
         },
 
         connection_status: function () {
@@ -527,6 +529,49 @@ export default {
             this.isLoading = false
         },
 
+        async ensurePouchDb() {
+            if (this.pouchdbCtor) {
+                return this.pouchdbCtor
+            }
+            const module = await import('pouchdb')
+            this.pouchdbCtor = module.default || module
+            return this.pouchdbCtor
+        },
+
+        async ensureHighlight() {
+            if (this.highlightFn) {
+                return this.highlightFn
+            }
+            const [hljsModule, jsonModule] = await Promise.all([
+                import('highlight.js/lib/core'),
+                import('highlight.js/lib/languages/json')
+            ])
+            const hljs = hljsModule.default || hljsModule
+            const json = jsonModule.default || jsonModule
+            hljs.registerLanguage('json', json)
+            await import('highlight.js/styles/github.css')
+            this.highlightFn = (code) => hljs.highlight(code, { language: 'json' }).value
+            this.highlightReady = true
+            return this.highlightFn
+        },
+
+        highlightJson(code) {
+            if (!code) return ''
+            if (this.highlightFn) {
+                return this.highlightFn(code)
+            }
+            return this.escapeHtml(code)
+        },
+
+        escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;')
+        },
+
        setRouterNavigation() {
             if (this.program == "SHOWALL") {
                 this.program = null
@@ -551,6 +596,7 @@ export default {
                     }
                 }
 
+                const PouchDB = await this.ensurePouchDb()
                 this.db = new PouchDB(this.couchdb, options)
                 localStorage.setItem('couchdb', this.couchdb)
                 localStorage.setItem('couchdb-user', this.couchdb_user)
@@ -568,6 +614,9 @@ export default {
         },
         toggleProgramDetails() {
             this.showProgramDetails = !this.showProgramDetails;
+            if (this.showProgramDetails) {
+                this.ensureHighlight()
+            }
         },
         fetchData: function (type, get_more = false) {
             let me = this
@@ -660,18 +709,19 @@ export default {
             }
         },
 
-        showJSONDocument(doc_id) {
+        async showJSONDocument(doc_id) {
             // Implement the logic to fetch and display IP information in a popup
             this.selectedDocument = doc_id
             this.docInfo = null
             this.$bvModal.show('doc-info-modal')
-            let me = this
-            this.db.get(doc_id).then(function (response) {
-                me.docInfo = me.$highlight(JSON.stringify(response, null, 2));
-            }).catch(function () {
+            await this.ensureHighlight()
+            try {
+                const response = await this.db.get(doc_id)
+                this.docInfo = this.highlightJson(JSON.stringify(response, null, 2))
+            } catch (error) {
                 console.log('Error fetching document')
-                me.$bvModal.hide('doc-info-modal')
-            })
+                this.$bvModal.hide('doc-info-modal')
+            }
         },
 
         get_tagnames: function (doctype) {
