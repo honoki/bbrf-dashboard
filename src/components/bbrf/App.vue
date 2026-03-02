@@ -143,6 +143,7 @@ export default {
                             key: 'id',
                             label: 'Domain',
                             sortable: true,
+                            show: true,
                             formatter: value => {
                                 if (value.startsWith('._')) return value.substring(1)
                                 return value
@@ -151,17 +152,20 @@ export default {
                         {
                             key: 'doc.ips',
                             label: 'IPs',
-                            sortable: false
+                            sortable: false,
+                            show: true
                         },
                         {
                             key: 'doc.source',
                             label: 'Source',
-                            sortable: true
+                            sortable: true,
+                            show: false
                         },
                         {
                             key: 'doc.program',
                             label: 'Program',
-                            sortable: false
+                            sortable: false,
+                            show: true
                         }
                         ],
                         filters: {
@@ -183,22 +187,26 @@ export default {
                         fields: [{
                             key: 'id',
                             label: 'IP',
-                            sortable: true
+                            sortable: true,
+                            show: true
                         },
                         {
                             key: 'doc.domains',
                             label: 'Domains',
-                            sortable: false
+                            sortable: false,
+                            show: true
                         },
                         {
                             key: 'doc.source',
                             label: 'Source',
-                            sortable: true
+                            sortable: true,
+                            show: false
                         },
                         {
                             key: 'doc.program',
                             label: 'Program',
-                            sortable: false
+                            sortable: false,
+                            show: true
                         }
                         ],
                         filters: {
@@ -219,37 +227,44 @@ export default {
                         fields: [{
                             key: 'id',
                             label: 'URL',
-                            sortable: false
+                            sortable: false,
+                            show: true
                         },
                         {
                             key: 'doc.hostname',
                             label: 'Hostname',
-                            sortable: true
+                            sortable: true,
+                            show: true
                         },
                         {
                             key: 'doc.port',
                             label: 'Port',
-                            sortable: true
+                            sortable: true,
+                            show: true
                         },
                         {
                             key: 'doc.status',
                             label: 'Status',
-                            sortable: true
+                            sortable: true,
+                            show: true
                         },
                         {
                             key: 'doc.content_length',
                             label: 'Content Length',
-                            sortable: true
+                            sortable: true,
+                            show: true
                         },
                         {
                             key: 'doc.source',
                             label: 'Source',
-                            sortable: true
+                            sortable: true,
+                            show: false
                         },
                         {
                             key: 'doc.program',
                             label: 'Program',
-                            sortable: false
+                            sortable: false,
+                            show: true
                         }
                         ],
                         filters: {
@@ -274,27 +289,32 @@ export default {
                         fields: [{
                             key: 'doc.ip',
                             label: 'IP',
-                            sortable: false
+                            sortable: false,
+                            show: true
                         },
                         {
                             key: 'doc.port',
                             label: 'Port',
-                            sortable: true
+                            sortable: true,
+                            show: true
                         },
                         {
                             key: 'doc.service',
                             label: 'Service',
-                            sortable: true
+                            sortable: true,
+                            show: true
                         },
                         {
                             key: 'doc.source',
                             label: 'Source',
-                            sortable: true
+                            sortable: true,
+                            show: false
                         },
                         {
                             key: 'doc.program',
                             label: 'Program',
-                            sortable: false
+                            sortable: false,
+                            show: true
                         }
                         ],
                         filters: {
@@ -324,8 +344,15 @@ export default {
                     description: 'Display data tables full page width',
                     info: 'Make the data table containing domains, IPs, URLs and services span the full width of the page',
                     value: JSON.parse(localStorage.getItem('settings.full_width_table')) ?? false
+                },
+                screenshot_column_name: {
+                    description: 'Screenshot column name',
+                    info: 'The name of the custom tag column containing screenshot URLs, displayed as thumbnail images (e.g. "screenshot", "image", "gowitness")',
+                    value: localStorage.getItem('settings.screenshot_column_name') || 'screenshot',
+                    type: 'text'
                 }
             },
+            screenshotUrl: null,
             showProgramDetails: false,
             docInfo: null,
             selectedDocument: null,
@@ -365,22 +392,23 @@ export default {
                     return vm.docstore[docType].records
                 }
 
-                let results = this.program
-                    ? documents.table.fields.filter(field => field.key !== 'doc.program')
-                    : documents.table.fields.slice();
-
-                if (docType === 'domains' && documents.filter_domains === 'unresolved') {
-                    results = results.filter(field => field.key !== 'doc.ips');
-                }
+                let results = documents.table.fields.filter(field => {
+                    if (field.show === false) return false;
+                    if (field.key === 'doc.program' && this.program) return false;
+                    if (field.key === 'doc.ips' && docType === 'domains' && documents.filter_domains === 'unresolved') return false;
+                    return true;
+                });
 
                 // Add custom tags if they are toggled on
+                const screenshotName = this.settings.screenshot_column_name.value;
                 documents.tagnames.forEach(tag => {
                     if (tag.show) {
                         results.push({
                             key: `doc.tags.${tag.name}`,
                             label: tag.name,
                             sortable: true,
-                            formatter: value => this.formatTagAsTimestamp(value)
+                            formatter: value => this.formatTagAsTimestamp(value),
+                            isScreenshot: tag.name === screenshotName
                         });
                     }
                 });
@@ -1023,6 +1051,10 @@ export default {
                     return parsed;
             }
             return value;
+        },
+        showScreenshot: function (url) {
+            this.screenshotUrl = url;
+            this.$bvModal.show('screenshot-modal');
         },
         save_settings: function () {
             for (var setting in this.settings) {

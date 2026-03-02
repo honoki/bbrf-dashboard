@@ -147,13 +147,21 @@
                             </div>
                             <br />
                             <b-pagination v-model="docs.table.current_page" :total-rows="records_filtered(doctype).length" :per-page="table_pagination_records" :aria-controls="'tbl-'+doctype" align="center"></b-pagination>
-                            <div v-if="docs.tagnames.length > 0">
-                                <span v-for="tag in docs.tagnames" :key="tag.name">
-                                    <b-button pill size="sm" :pressed.sync="tag.show" variant="outline-primary">{{ tag.name }}</b-button>
-                                    {{ '&nbsp;' }}
-                                </span>
+                            <div>
+                                <template v-for="field in docs.table.fields">
+                                    <span :key="'fixed-' + field.key" v-if="!(field.key === 'doc.program' && program)">
+                                        <b-button pill size="sm" :pressed.sync="field.show" variant="outline-secondary">{{ field.label }}</b-button>
+                                        {{ '&nbsp;' }}
+                                    </span>
+                                </template>
+                                <template v-for="tag in docs.tagnames">
+                                    <span :key="tag.name">
+                                        <b-button pill size="sm" :pressed.sync="tag.show" variant="outline-primary">{{ tag.name }}</b-button>
+                                        {{ '&nbsp;' }}
+                                    </span>
+                                </template>
                                 &nbsp;
-                                <span v-b-tooltip title="Toggle your custom tags to add them as columns to the data table.">
+                                <span v-b-tooltip title="Toggle columns to show/hide them in the data table. Custom tags are shown in blue.">
                                     <b-icon icon="info-circle-fill" scale="1" variant="black"></b-icon>
                                 </span>
                             </div>
@@ -167,6 +175,12 @@
                                 </template>
                                 <template #cell(doc.hostname)="data">
                                     <span v-html="formatClickableDocuments(data.value)" @click.prevent="handleDocumentClick"></span>
+                                </template>
+                                <template #cell()="data">
+                                    <span v-if="data.field.isScreenshot && data.value">
+                                        <img :src="data.value" style="width: 100%; height: auto; cursor: pointer; display: block;" @click="showScreenshot(data.value)" />
+                                    </span>
+                                    <span v-else>{{ data.value }}</span>
                                 </template>
                                 <template #table-busy>
                                     <div class="text-center">
@@ -314,23 +328,38 @@
                         <b-button type="submit" variant="primary" @click.prevent="connect_server">Connect</b-button>
                       </b-form>
                       <hr />
-                    <b-form-group
-                    label="Display Settings"
-                    v-slot="{ ariaDescribedby }"
-                    >
-                        <b-form-checkbox
-                            v-for="setting in settings"
-                            v-model="setting.value"
-                            :key="setting.description"
-                            :aria-describedby="ariaDescribedby"
-                            name="flavour-3a"
-                            @change="save_settings"
-                        >
-                        {{ setting.description }}
-                        <span v-b-tooltip :title="setting.info">
-                            <b-icon icon="info-circle-fill" scale="1" variant="black"></b-icon>
-                        </span>
-                        </b-form-checkbox>
+                    <b-form-group label="Display Settings">
+                        <template v-for="(setting, key) in settings">
+                            <b-form-checkbox
+                                v-if="setting.type !== 'text'"
+                                v-model="setting.value"
+                                :key="key"
+                                @change="save_settings"
+                                class="mb-1"
+                            >
+                                {{ setting.description }}
+                                <span v-b-tooltip :title="setting.info">
+                                    <b-icon icon="info-circle-fill" scale="1" variant="black"></b-icon>
+                                </span>
+                            </b-form-checkbox>
+                            <b-form-group
+                                v-else
+                                :key="key + '_text'"
+                                :label="setting.description"
+                                :description="setting.info"
+                                class="mt-3"
+                            >
+                                <div class="d-flex align-items-center">
+                                    <b-form-input
+                                        v-model="setting.value"
+                                        @change="save_settings"
+                                        type="text"
+                                        placeholder="screenshot"
+                                        style="max-width: 300px;"
+                                    ></b-form-input>
+                                </div>
+                            </b-form-group>
+                        </template>
                     </b-form-group>
                 </b-card>
             </div>
@@ -353,5 +382,10 @@
     <b-modal id="doc-info-modal" :title="selectedDocument" hide-footer scrollable>
         <pre v-if="docInfo"><code v-html="docInfo"></code></pre>
         <p v-else>Loading...</p>
-      </b-modal>
+    </b-modal>
+    <b-modal id="screenshot-modal" hide-footer size="xl" title="Screenshot">
+        <div class="text-center">
+            <img v-if="screenshotUrl" :src="screenshotUrl" style="max-width: 100%; max-height: 80vh; object-fit: contain;" />
+        </div>
+    </b-modal>
 </div>
